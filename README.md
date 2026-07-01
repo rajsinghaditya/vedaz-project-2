@@ -65,7 +65,7 @@ OPENAI_API_KEY="your_openai_key_here"
 
 ---
 
-## Task 1 — Chat Checker Script (`check_chats.py`)
+## Task 1 — Chat Checker Script ([check_chats.py](check_chats.py))
 
 Checks and reports the validity of a `.jsonl` or `.json` dataset based on schema shape, turn rules, word/token length, near-duplicates, and safety violations. It then splits clean chats into a training set and a smaller test set.
 
@@ -82,16 +82,16 @@ Checks and reports the validity of a `.jsonl` or `.json` dataset based on schema
 ### Design Choices
 1.  **Shape Verification**: Validates that message 0 is a `system` prompt and that subsequent messages strictly alternate between `user` and `assistant` roles.
 2.  **Near-Duplicate Detection**: Uses a clean, dependency-free Jaccard similarity metric on word unigrams and bigrams. Concatenating user/assistant text isolates actual semantic similarity, preventing false duplicates based on standard system prompts.
-3.  **Hybrid Safety Checker**:
+3.  **Hybrid Safety Checker** (implemented in [src/checker.py](src/checker.py)):
     *   *First Pass (Keywords)*: Scans the assistant turns for compiled safety lists (covering English, Hindi, and transliterated Hinglish) flagging death predictions, lottery/wealth guarantees, and remedy payment pressure.
     *   *Second Pass (LLM Override)*: Since simple keyword lists trigger massive false positives on disclaimers (e.g. *"Remedies are NOT a guarantee"* triggers `'guarantee'`, and *"ni-shulk"* triggers `'shulk'/fee`), the script uses the LLM as a judge to verify if a keyword match is a real violation or a false positive. If the LLM rules it safe, the keyword flag is overridden. If no LLM key is configured, it fails safe.
     *   *Regex Bug Prevention*: Substituted raw matches for non-alphanumeric keywords (like `"rs."` which was matching words ending in `rs.` such as `"yours."`) with explicit standalone boundaries.
 
 ---
 
-## Task 2 — Chat Generator Script (`generate_chats.py`)
+## Task 2 — Chat Generator Script ([generate_chats.py](generate_chats.py))
 
-Uses the configured LLM client to generate 10 synthetic chats based on a list of diverse situations (covering Hinglish, Hindi, and English registers) and feeds each output through Task 1's validation filter to ensure safety before saving.
+Uses the configured LLM client (abstracted in [src/llm_client.py](src/llm_client.py)) to generate 10 synthetic chats based on a list of diverse situations (covering Hinglish, Hindi, and English registers) and feeds each output through Task 1's validation filter ([src/generator.py](src/generator.py)) to ensure safety before saving.
 
 ### How to Run
 ```bash
@@ -99,16 +99,16 @@ Uses the configured LLM client to generate 10 synthetic chats based on a list of
 ```
 
 ### Resiliency & Reliability Engineering
-*   **Incremental Progress / Resumability**: Reads the output file `generated_chats.jsonl` upon startup. It identifies already completed topics and skips them, allowing you to resume interrupted runs without wasting API calls.
+*   **Incremental Progress / Resumability**: Reads the output file [generated_chats.jsonl](generated_chats.jsonl) upon startup. It identifies already completed topics and skips them, allowing you to resume interrupted runs without wasting API calls.
 *   **API Rate Limit Handling (Sleep)**: Inserts a `10s` delay between requests to keep the client safely below the `15 RPM` limit of Google AI Studio's free tier.
 *   **Exponential Backoff**: If the API returns a `429 RESOURCE_EXHAUSTED` error, the client catches it, sleeps (starting at 8 seconds), and retries with doubled sleep times (8s, 16s, 32s...) up to 5 times.
 *   **Active Model Matching**: Configured to run on the modern `gemini-2.5-flash` model, ensuring compatibility with the active 2026 developer API registry.
 
 ---
 
-## Task 3 — Quality Tester Script (`test_quality.py`)
+## Task 3 — Quality Tester Script ([test_quality.py](test_quality.py))
 
-Measures the safety and counselor performance of the AI assistant against 12 representative test questions (including safe inquiries, skeptical queries, and direct safety trigger questions). A separate LLM acts as an independent judge to score the answers.
+Measures the safety and counselor performance of the AI assistant against 12 representative test questions (including safe inquiries, skeptical queries, and direct safety trigger questions). A separate LLM (implemented via [src/tester.py](src/tester.py)) acts as an independent judge to score the answers.
 
 ### How to Run
 ```bash
